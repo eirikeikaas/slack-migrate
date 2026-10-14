@@ -347,3 +347,124 @@ def archive_channel(channel_id):
 
     except Exception as e:
         raise Exception(f"Error archiving channel {channel_id}: {str(e)}")
+
+
+CANVAS_FILETYPE = "quip"
+
+
+def _channel_canvas_ids(channels):
+    """Map channel canvas file IDs to the channel that owns them."""
+    owners = {}
+    for channel in channels:
+        try:
+            info = get_channel_info(channel["id"])
+        except Exception:
+            continue
+        canvas = (info.get("properties") or {}).get("canvas") or {}
+        file_id = canvas.get("file_id")
+        if file_id:
+            owners[file_id] = channel["id"]
+    return owners
+
+
+def fetch_canvases(refresh=False):
+    """Fetch all canvases visible to the token.
+
+    Args:
+        refresh (bool): Force refresh of cached data
+
+    Returns:
+        list: Canvas file objects, each with an added "channel_id" key
+            (None unless the canvas is a channel canvas)
+    """
+    cache_name = "canvases"
+
+    if not refresh:
+        cached = get_cached_data(cache_name)
+        if cached is not None:
+            return cached
+
+    canvases = []
+    page = 1
+
+    try:
+        while True:
+            result = app.client.files_list(
+                types=CANVAS_FILETYPE, count=100, page=page)
+            canvases.extend(
+                f for f in result["files"]
+                if f.get("filetype") == CANVAS_FILETYPE)
+
+            paging = result.get("paging", {})
+            if page >= paging.get("pages", 1):
+                break
+            page += 1
+
+        owners = _channel_canvas_ids(fetch_channels(refresh=refresh))
+        for canvas in canvases:
+            canvas["channel_id"] = owners.get(canvas["id"])
+
+        cache_data(cache_name, canvases)
+        return canvases
+
+    except Exception as e:
+        raise Exception(f"Error retrieving canvases: {e}")
+
+
+def download_canvas_content(file_id):
+    """Download the HTML content of a canvas.
+
+    Args:
+        file_id (str): ID of the canvas file
+
+    Returns:
+        str: Canvas HTML
+
+    Raises:
+        Exception: If the canvas cannot be read
+    """
+    import urllib.request
+
+    try:
+        response = app.client.files_info(file=file_id)
+        url = response["file"].get("url_private_download") or \
+            response["file"].get("url_private")
+        if not url:
+            raise Exception("canvas has no download URL")
+
+        request = urllib.request.Request(
+            url, headers={"Authorization": f"Bearer {app.client.token}"})
+        with urllib.request.urlopen(request) as http_response:
+            return http_response.read().decode("utf-8")
+    except Exception as e:
+        raise Exception(f"Error downloading canvas {file_id}: {e}")
+
+
+def create_canvas(title, markdown, channel_id=None):
+    """Create a canvas, standalone or as a channel's canvas.
+
+    Args:
+        title (str): Canvas title (standalone canvases only)
+        markdown (str): Canvas content as markdown
+        channel_id (str): If given, create the channel canvas for this channel
+
+    Returns:
+        str: ID of the new canvas
+
+    Raises:
+        Exception: If API call fails with an error
+    """
+    content = {"type": "markdown", "markdown": markdown}
+    try:
+        if channel_id:
+            response = admin_client.conversations_canvases_create(
+                channel_id=channel_id, document_content=content)
+        else:
+            response = admin_client.canvases_create(
+                title=title, document_content=content)
+
+        if not response.get("ok", False):
+            raise Exception(response.get("error", "Unknown error"))
+        return response["canvas_id"]
+    except Exception as e:
+        raise Exception(f"Error creating canvas '{title}': {e}")

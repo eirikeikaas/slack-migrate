@@ -7,6 +7,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "slack-bolt",
+        "slack_sdk",
+        "tabulate",
         "python-dotenv",
         "click",
     ],
