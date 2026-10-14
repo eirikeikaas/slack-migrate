@@ -1,11 +1,12 @@
 # Slack Migration Tools
 
-A Python-based CLI tool for extracting and managing Slack workspace data, including channels, users, and emoji.
+A Python-based CLI tool for extracting and managing Slack workspace data, including channels, users, emoji, and canvases.
 
 ## Features
 
 - Extract and manage Slack channels
 - Export and manage emoji
+- Export canvases and re-create them in Slack
 - User information retrieval
 - Caching system for API responses
 - Command-line interface for easy interaction
@@ -27,11 +28,14 @@ The following permissions are required for the CLI to function properly. These c
 - `channels:join` - Join public channels
 - `channels:manage` - Manage public channels and create new ones
 - `groups:write` - Manage private channels
+- `canvases:write` - Create canvases
 
 ### Read Permissions
 - `channels:read` - View basic information about public channels
 - `groups:read` - View basic information about private channels
 - `emoji:read` - View custom emoji
+- `canvases:read` - Read canvases
+- `files:read` - List and download canvas files
 - `users:read` - View people in the workspace
 - `users:read.email` - View email addresses of people
 
@@ -78,6 +82,7 @@ slack_migrate/
 ├── cli.py           # CLI interface
 └── methods/         # Command implementations
     ├── channels.py
+    ├── canvases.py
     ├── emoji.py
     └── users.py
 
@@ -94,6 +99,16 @@ slack-migrate channels fetch [--type TYPE] [--refresh] [--creator CREATOR] [--ar
 slack-migrate channels archive CHANNEL_ID [--dry-run]
 slack-migrate channels prefix PREFIX [CHANNEL_ID] [--dry-run]
 ```
+
+### Canvases Commands
+
+```bash
+slack-migrate canvases fetch [--refresh] [--csv]
+slack-migrate canvases download [--refresh]
+slack-migrate canvases recreate [--dry-run] [--channel CHANNEL_ID] [CANVAS_IDS...]
+```
+
+`download` saves canvases to `data/canvases/`; `recreate` converts them to markdown and creates new canvases (use `--channel` to set a channel's canvas). Formatting beyond headings, lists, checklists, links and bold/italic is flattened to text.
 
 ### Emoji Commands
 
